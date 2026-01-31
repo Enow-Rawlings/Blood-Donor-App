@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signUp } from './authService';
 import FileUpload from './FileUpload';
@@ -26,6 +26,11 @@ const RegisterRecipient = () => {
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
+
+    // Memoize the upload handler to prevent infinite re-renders
+    const handleUploadComplete = useCallback((url) => {
+        setFormData(prev => ({ ...prev, prescriptionUrl: url }));
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -67,7 +72,7 @@ const RegisterRecipient = () => {
             <form onSubmit={handleSubmit} className="auth-form">
                 <div className="form-group">
                     <label>Full Name</label>
-                    <input type="text" name="fullName" required placeholder="John Doe" onChange={handleInputChange} />
+                    <input type="text" name="fullName" required placeholder="John Doe" value={formData.fullName} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group">
@@ -80,7 +85,7 @@ const RegisterRecipient = () => {
 
                 <div className="form-group">
                     <label>Blood Type (If known)</label>
-                    <select name="bloodTypeNeeded" onChange={handleInputChange}>
+                    <select name="bloodTypeNeeded" value={formData.bloodTypeNeeded} onChange={handleInputChange}>
                         <option value="">Select Blood Type</option>
                         <option value="A+">A+</option>
                         <option value="A-">A-</option>
@@ -95,33 +100,33 @@ const RegisterRecipient = () => {
 
                 <div className="form-group">
                     <label>Phone Number</label>
-                    <input type="tel" name="phone" required placeholder="+234..." onChange={handleInputChange} />
+                    <input type="tel" name="phone" required placeholder="+234..." value={formData.phone} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" required placeholder="name@email.com" onChange={handleInputChange} />
+                    <input type="email" name="email" required placeholder="name@email.com" value={formData.email} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group-row">
                     <div className="form-group">
                         <label>Age (Years)</label>
-                        <input type="number" name="age" min="0" required placeholder="Age" onChange={handleInputChange} />
+                        <input type="number" name="age" min="0" required placeholder="Age" value={formData.age} onChange={handleInputChange} />
                     </div>
                     <div className="form-group">
                         <label>Weight (kg)</label>
-                        <input type="number" name="weight" min="0" required placeholder="Weight" onChange={handleInputChange} />
+                        <input type="number" name="weight" min="0" required placeholder="Weight" value={formData.weight} onChange={handleInputChange} />
                     </div>
                 </div>
 
                 <FileUpload
                     label="Medical Prescription/Document (PDF/IMAGE)"
-                    onUploadComplete={(url) => setFormData({ ...formData, prescriptionUrl: url })}
+                    onUploadComplete={handleUploadComplete}
                 />
 
                 <div className="form-group">
                     <label>Create Password</label>
-                    <input type="password" name="password" minLength="8" required onChange={handleInputChange} />
+                    <input type="password" name="password" minLength="8" required value={formData.password} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group checkbox-group">

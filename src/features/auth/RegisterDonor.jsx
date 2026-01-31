@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signUp } from './authService';
 import FileUpload from './FileUpload';
 
-const CITIES = ["Buea", "Douala", "Bamenda", "Kumba", "Muyuka", "Mamfe", "Maroua", "Garoua", "Ebolowa", "Bafoussam"];
+const CITIES = ["Buea", "Douala", "Bamenda", "Kumba", "Yaounde", "Muyuka", "Mamfe", "Maroua", "Garoua", "Ebolowa", "Bafoussam"];
 
 const RegisterDonor = () => {
     const [formData, setFormData] = useState({
@@ -26,6 +26,11 @@ const RegisterDonor = () => {
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
+
+    // Memoize the upload handler to prevent infinite re-renders
+    const handleUploadComplete = useCallback((url) => {
+        setFormData(prev => ({ ...prev, medicalReportUrl: url }));
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -68,7 +73,7 @@ const RegisterDonor = () => {
             <form onSubmit={handleSubmit} className="auth-form">
                 <div className="form-group">
                     <label>Full Name</label>
-                    <input type="text" name="fullName" required placeholder="Full Name" onChange={handleInputChange} />
+                    <input type="text" name="fullName" required placeholder="Full Name" value={formData.fullName} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group">
@@ -81,7 +86,7 @@ const RegisterDonor = () => {
 
                 <div className="form-group">
                     <label>Blood Type</label>
-                    <select name="bloodType" required onChange={handleInputChange}>
+                    <select name="bloodType" required value={formData.bloodType} onChange={handleInputChange}>
                         <option value="">Select Blood Type</option>
                         <option value="A+">A+</option>
                         <option value="A-">A-</option>
@@ -96,33 +101,33 @@ const RegisterDonor = () => {
 
                 <FileUpload
                     label="Medical Checkup Report (PDF/IMAGE)"
-                    onUploadComplete={(url) => setFormData({ ...formData, medicalReportUrl: url })}
+                    onUploadComplete={handleUploadComplete}
                 />
 
                 <div className="form-group">
                     <label>Phone Number</label>
-                    <input type="tel" name="phone" required placeholder="+234..." onChange={handleInputChange} />
+                    <input type="tel" name="phone" required placeholder="+234..." value={formData.phone} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" required placeholder="email@example.com" onChange={handleInputChange} />
+                    <input type="email" name="email" required placeholder="email@example.com" value={formData.email} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group-row">
                     <div className="form-group">
                         <label>Age (Years)</label>
-                        <input type="number" name="age" min="18" max="65" required placeholder="Age" onChange={handleInputChange} />
+                        <input type="number" name="age" min="18" max="65" required placeholder="Age" value={formData.age} onChange={handleInputChange} />
                     </div>
                     <div className="form-group">
                         <label>Weight (kg)</label>
-                        <input type="number" name="weight" min="45" required placeholder="Weight" onChange={handleInputChange} />
+                        <input type="number" name="weight" min="45" required placeholder="Weight" value={formData.weight} onChange={handleInputChange} />
                     </div>
                 </div>
 
                 <div className="form-group">
                     <label>Password</label>
-                    <input type="password" name="password" minLength="8" required onChange={handleInputChange} />
+                    <input type="password" name="password" minLength="8" required value={formData.password} onChange={handleInputChange} />
                 </div>
 
                 <div className="form-group checkbox-group">
