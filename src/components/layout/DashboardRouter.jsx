@@ -6,11 +6,25 @@ import RecipientDashboard from '../../features/recipient/RecipientDashboard';
 import AdminDashboard from '../../features/admin/AdminDashboard';
 
 const DashboardRouter = () => {
-    const { userData, loading } = useAuth();
+    const { userData, currentUser, loading } = useAuth();
 
     if (loading) return <div className="loading-state">Initializing Dashboard...</div>;
 
-    if (!userData) return <Navigate to="/login" />;
+    // If not logged in, go to login
+    if (!currentUser) return <Navigate to="/login" />;
+
+    // If logged in but no profile data yet (race condition or slow network), show loading
+    // instead of redirecting to login which causes infinite loop
+    if (!userData) {
+        return (
+            <div className="loading-state">
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <h3>Finalizing setup...</h3>
+                    <p>Please wait while we load your profile.</p>
+                </div>
+            </div>
+        );
+    }
 
     switch (userData.role) {
         case 'admin':
