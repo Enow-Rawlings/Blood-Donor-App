@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { signUp } from './authService';
 import FileUpload from './FileUpload';
 
-const CITIES = ["Lagos", "Abuja", "Port Harcourt", "Kano", "Ibadan", "Enugu"];
+const CITIES = ["Buea", "Douala", "Bamenda", "Kumba", "Muyuka", "Mamfe", "Maroua", "Garoua", "Ebolowa", "Bafoussam"];
 
 const RegisterRecipient = () => {
     const [formData, setFormData] = useState({
