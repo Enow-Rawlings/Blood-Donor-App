@@ -12,10 +12,12 @@ const Navbar = () => {
         <span className="nav-icon">🏠</span>
         <span className="nav-label">Home</span>
       </NavLink>
-      <NavLink to="/search" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-        <span className="nav-icon">🔍</span>
-        <span className="nav-label">Search</span>
-      </NavLink>
+      {userData?.role === 'recipient' && (
+        <NavLink to="/search" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <span className="nav-icon">🔍</span>
+          <span className="nav-label">Search</span>
+        </NavLink>
+      )}
       <NavLink to="/history" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
         <span className="nav-icon">🕒</span>
         <span className="nav-label">History</span>

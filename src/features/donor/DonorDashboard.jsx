@@ -1,19 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import ChatList from '../chat/ChatList';
 
 const DonorDashboard = () => {
     const { userData, currentUser } = useAuth();
     const [isActive, setIsActive] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
+    const [requests, setRequests] = useState([]);
 
     useEffect(() => {
         if (userData) {
             setIsActive(userData.availabilityStatus === 'active');
         }
     }, [userData]);
+
+    useEffect(() => {
+        if (!currentUser) return;
+
+        // Listen for requests approved by admin but not yet accepted by donor
+        const q = query(
+            collection(db, "requests"),
+            where("donorId", "==", currentUser.uid),
+            where("status", "==", "approved_by_admin")
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setRequests(reqs);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
 
     const toggleAvailability = async () => {
         const newStatus = !isActive ? 'active' : 'inactive';
@@ -25,6 +44,16 @@ const DonorDashboard = () => {
             });
         } catch (error) {
             console.error("Failed to update status", error);
+        }
+    };
+
+    const handleRequestAction = async (requestId, action) => {
+        try {
+            await updateDoc(doc(db, "requests", requestId), {
+                status: action === 'accept' ? 'accepted' : 'declined'
+            });
+        } catch (error) {
+            console.error(`Failed to ${action} request`, error);
         }
     };
 
@@ -48,6 +77,12 @@ const DonorDashboard = () => {
                     Overview
                 </button>
                 <button
+                    className={`tab-btn ${activeTab === 'requests' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('requests')}
+                >
+                    Requests {requests.length > 0 && <span className="tab-badge">{requests.length}</span>}
+                </button>
+                <button
                     className={`tab-btn ${activeTab === 'messaging' ? 'active' : ''}`}
                     onClick={() => setActiveTab('messaging')}
                 >
@@ -55,7 +90,7 @@ const DonorDashboard = () => {
                 </button>
             </div>
 
-            {activeTab === 'overview' ? (
+            {activeTab === 'overview' && (
                 <>
                     <div className="availability-card card">
                         <div className="availability-header">
@@ -90,12 +125,37 @@ const DonorDashboard = () => {
                             <span className="stat-label">Days to next</span>
                         </div>
                         <div className="stat-card card">
-                            <span className="stat-value">0</span>
-                            <span className="stat-label">Requests</span>
+                            <span className="stat-value">{requests.length}</span>
+                            <span className="stat-label">New Requests</span>
                         </div>
                     </div>
                 </>
-            ) : (
+            )}
+
+            {activeTab === 'requests' && (
+                <div className="requests-list">
+                    {requests.length === 0 ? (
+                        <div className="empty-state card">
+                            <p>No new requests at the moment. 🩸</p>
+                        </div>
+                    ) : (
+                        requests.map(req => (
+                            <div key={req.id} className="request-card card fade-in">
+                                <div className="request-info">
+                                    <strong>{req.recipientName}</strong>
+                                    <p>Needs {req.bloodTypeNeeded} blood in {req.city}</p>
+                                </div>
+                                <div className="request-actions">
+                                    <button className="btn-accept" onClick={() => handleRequestAction(req.id, 'accept')}>Accept</button>
+                                    <button className="btn-decline" onClick={() => handleRequestAction(req.id, 'decline')}>Decline</button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'messaging' && (
                 <ChatList />
             )}
 
@@ -123,9 +183,17 @@ const DonorDashboard = () => {
         input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
 
         .dashboard-tabs { display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); }
-        .tab-btn { background: none; border: none; padding: 0.75rem 0.5rem; font-weight: 600; color: var(--text-light); cursor: pointer; position: relative; }
+        .tab-btn { background: none; border: none; padding: 0.75rem 0.5rem; font-weight: 600; color: var(--text-light); cursor: pointer; position: relative; display: flex; align-items: center; gap: 0.4rem; }
         .tab-btn.active { color: var(--primary-red); }
         .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--primary-red); }
+        .tab-badge { background: var(--primary-red); color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; }
+
+        .request-card { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; margin-bottom: 1rem; }
+        .request-info p { font-size: 0.85rem; color: var(--text-medium); margin-top: 0.25rem; }
+        .request-actions { display: flex; gap: 0.5rem; }
+        .btn-accept { background: var(--success); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-decline { background: var(--bg-light); color: var(--text-medium); border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .empty-state { text-align: center; color: var(--text-light); padding: 2rem; }
       `}</style>
         </div>
     );

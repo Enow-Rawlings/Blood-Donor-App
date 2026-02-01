@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 
 const FileUpload = ({ label, onUploadComplete, accept = ".pdf,.jpg,.png" }) => {
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
+  const inputId = useId();
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -64,10 +65,10 @@ const FileUpload = ({ label, onUploadComplete, accept = ".pdf,.jpg,.png" }) => {
   return (
     <div className="file-upload-container">
       <label className="form-label">{label}</label>
-      <div className="file-upload-card" onClick={() => document.getElementById('file-input').click()}>
+      <div className="file-upload-card" onClick={() => document.getElementById(inputId).click()}>
         <input
           type="file"
-          id="file-input"
+          id={inputId}
           accept={accept}
           onChange={handleFileChange}
           style={{ display: 'none' }}

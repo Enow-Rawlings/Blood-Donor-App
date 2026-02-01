@@ -30,7 +30,7 @@ function App() {
 
         {/* Protected Routes */}
         <Route path="/dashboard" element={currentUser ? <DashboardRouter /> : <Navigate to="/login" />} />
-        <Route path="/search" element={currentUser ? <DonorSearch /> : <Navigate to="/login" />} />
+        <Route path="/search" element={currentUser?.role === 'recipient' ? <DonorSearch /> : <Navigate to="/dashboard" />} />
         <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/login" />} />
         <Route path="/history" element={currentUser ? <History /> : <Navigate to="/login" />} />
         <Route path="/chat/:chatId" element={currentUser ? <Chat /> : <Navigate to="/login" />} />

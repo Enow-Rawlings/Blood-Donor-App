@@ -3,9 +3,10 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   signOut,
-  sendEmailVerification
+  sendEmailVerification,
+  sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 /**
  * Register a new user and create their profile in Firestore
@@ -49,3 +50,16 @@ export const logIn = async (email, password) => {
  * Log out the current user
  */
 export const logOut = () => signOut(auth);
+
+/**
+ * Send password reset email
+ */
+export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
+
+/**
+ * Update user profile in Firestore
+ */
+export const updateUserProfile = async (uid, data) => {
+  const userRef = doc(db, "users", uid);
+  return updateDoc(userRef, data);
+};

@@ -27,19 +27,14 @@ const BloodRequestForm = ({ donor, onClose, onSuccess }) => {
                 donorName: donor.fullName,
                 bloodTypeNeeded: donor.bloodType,
                 prescriptionUrl: prescriptionUrl,
-                status: 'pending',
+                status: 'pending_admin_approval',
                 city: userData.city,
                 chatId: chatId,
                 createdAt: serverTimestamp()
             });
-            await addDoc(collection(db, "notifications"), {
-                recipientId: donor.id,
-                title: "New Blood Request",
-                body: `${userData.fullName} needs your ${donor.bloodType} blood. View documents now.`,
-                createdAt: serverTimestamp()
-            });
+            // We'll notify admin via the Admin Dashboard's real-time listener or a system notification
 
-            onSuccess(chatId);
+            onSuccess();
         } catch (err) {
             console.error("Request failed", err);
             setError("Failed to submit request. Please try again.");

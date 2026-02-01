@@ -16,6 +16,7 @@ const RegisterRecipient = () => {
         age: '',
         weight: '',
         prescriptionUrl: '',
+        profilePicUrl: '',
         role: 'recipient',
         acceptedTerms: false
     });
@@ -27,9 +28,13 @@ const RegisterRecipient = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // Memoize the upload handler to prevent infinite re-renders
-    const handleUploadComplete = useCallback((url) => {
+    // Memoize the upload handlers to prevent infinite re-renders
+    const handlePrescriptionUpload = useCallback((url) => {
         setFormData(prev => ({ ...prev, prescriptionUrl: url }));
+    }, []);
+
+    const handleProfilePicUpload = useCallback((url) => {
+        setFormData(prev => ({ ...prev, profilePicUrl: url }));
     }, []);
 
     const handleSubmit = async (e) => {
@@ -120,8 +125,14 @@ const RegisterRecipient = () => {
                 </div>
 
                 <FileUpload
+                    label="Profile Picture (JPG/PNG)"
+                    onUploadComplete={handleProfilePicUpload}
+                    accept=".jpg,.jpeg,.png"
+                />
+
+                <FileUpload
                     label="Medical Prescription/Document (PDF/IMAGE)"
-                    onUploadComplete={handleUploadComplete}
+                    onUploadComplete={handlePrescriptionUpload}
                 />
 
                 <div className="form-group">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const AdminDashboard = () => {
     const [pendingUsers, setPendingUsers] = useState([]);
@@ -18,8 +18,8 @@ const AdminDashboard = () => {
             setLoading(false);
         });
 
-        // Listen to pending blood requests
-        const requestsQ = query(collection(db, "requests"), where("status", "==", "pending"));
+        // Listen to pending blood requests (those awaiting admin review)
+        const requestsQ = query(collection(db, "requests"), where("status", "==", "pending_admin_approval"));
         const unsubscribeRequests = onSnapshot(requestsQ, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, type: 'request', ...doc.data() }));
             setPendingRequests(reqs);
@@ -34,9 +34,26 @@ const AdminDashboard = () => {
     const handleVerify = async (id, type, approve) => {
         try {
             const collectionName = type === 'user' ? "users" : "requests";
+            const newStatus = approve
+                ? (type === 'user' ? 'approved' : 'approved_by_admin')
+                : 'rejected';
+
             await updateDoc(doc(db, collectionName, id), {
-                status: approve ? 'approved' : 'rejected'
+                status: newStatus
             });
+
+            if (type === 'request' && approve) {
+                // Find the request data to get donorId
+                const reqData = pendingRequests.find(r => r.id === id);
+                if (reqData) {
+                    await addDoc(collection(db, "notifications"), {
+                        recipientId: reqData.donorId,
+                        title: "Blood Request Approved by Admin",
+                        body: `${reqData.recipientName} needs your help. View the request details.`,
+                        createdAt: serverTimestamp()
+                    });
+                }
+            }
         } catch (error) {
             console.error(`${type} verification update failed`, error);
         }

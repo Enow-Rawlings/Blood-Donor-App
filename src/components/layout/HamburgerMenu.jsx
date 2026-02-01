@@ -3,61 +3,63 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const HamburgerMenu = () => {
-    const { userData } = useAuth();
-    const [isOpen, setIsOpen] = useState(false);
+  const { userData } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
 
-    const toggleMenu = () => setIsOpen(!isOpen);
-    const closeMenu = () => setIsOpen(false);
+  const toggleMenu = () => setIsOpen(!isOpen);
+  const closeMenu = () => setIsOpen(false);
 
-    return (
-        <>
-            <button className="hamburger-btn" onClick={toggleMenu} aria-label="Menu">
-                <span className={`hamburger-icon ${isOpen ? 'open' : ''}`}>
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </span>
-            </button>
+  return (
+    <>
+      <button className="hamburger-btn" onClick={toggleMenu} aria-label="Menu">
+        <span className={`hamburger-icon ${isOpen ? 'open' : ''}`}>
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+      </button>
 
-            {isOpen && <div className="menu-overlay" onClick={closeMenu}></div>}
+      {isOpen && <div className="menu-overlay" onClick={closeMenu}></div>}
 
-            <nav className={`side-menu ${isOpen ? 'open' : ''}`}>
-                <div className="menu-header">
-                    <h3>Menu</h3>
-                    <button className="close-btn" onClick={closeMenu}>✕</button>
-                </div>
+      <nav className={`side-menu ${isOpen ? 'open' : ''}`}>
+        <div className="menu-header">
+          <h3>Menu</h3>
+          <button className="close-btn" onClick={closeMenu}>✕</button>
+        </div>
 
-                <div className="menu-items">
-                    <NavLink to="/dashboard" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
-                        <span className="menu-icon">🏠</span>
-                        <span className="menu-label">Home</span>
-                    </NavLink>
+        <div className="menu-items">
+          <NavLink to="/dashboard" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+            <span className="menu-icon">🏠</span>
+            <span className="menu-label">Home</span>
+          </NavLink>
 
-                    <NavLink to="/search" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
-                        <span className="menu-icon">🔍</span>
-                        <span className="menu-label">Search</span>
-                    </NavLink>
+          {userData?.role === 'recipient' && (
+            <NavLink to="/search" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+              <span className="menu-icon">🔍</span>
+              <span className="menu-label">Search</span>
+            </NavLink>
+          )}
 
-                    <NavLink to="/history" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
-                        <span className="menu-icon">🕒</span>
-                        <span className="menu-label">History</span>
-                    </NavLink>
+          <NavLink to="/history" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+            <span className="menu-icon">🕒</span>
+            <span className="menu-label">History</span>
+          </NavLink>
 
-                    <NavLink to="/profile" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
-                        <span className="menu-icon">👤</span>
-                        <span className="menu-label">Profile</span>
-                    </NavLink>
+          <NavLink to="/profile" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+            <span className="menu-icon">👤</span>
+            <span className="menu-label">Profile</span>
+          </NavLink>
 
-                    {userData?.role === 'admin' && (
-                        <NavLink to="/admin" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
-                            <span className="menu-icon">🛡️</span>
-                            <span className="menu-label">Admin</span>
-                        </NavLink>
-                    )}
-                </div>
-            </nav>
+          {userData?.role === 'admin' && (
+            <NavLink to="/admin" className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+              <span className="menu-icon">🛡️</span>
+              <span className="menu-label">Admin</span>
+            </NavLink>
+          )}
+        </div>
+      </nav>
 
-            <style>{`
+      <style>{`
         .hamburger-btn {
           position: fixed;
           top: 1rem;
@@ -203,8 +205,8 @@ const HamburgerMenu = () => {
           font-weight: 500;
         }
       `}</style>
-        </>
-    );
+    </>
+  );
 };
 
 export default HamburgerMenu;

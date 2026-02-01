@@ -21,16 +21,33 @@ const Chat = () => {
     const scrollRef = useRef();
     const navigate = useNavigate();
 
+    const [requestData, setRequestData] = useState(null);
+
     useEffect(() => {
         if (!chatId) return;
 
-        const q = query(
+        // Verify request status
+        const qRequest = query(collection(db, "requests"), where("chatId", "==", chatId));
+        const unsubscribeRequest = onSnapshot(qRequest, (snapshot) => {
+            if (!snapshot.empty) {
+                const data = snapshot.docs[0].data();
+                setRequestData(data);
+                if (data.status !== 'accepted') {
+                    // Messaging restricted
+                    setLoading(false);
+                }
+            } else {
+                setLoading(false);
+            }
+        });
+
+        const qMessages = query(
             collection(db, "messages"),
             where("chatId", "==", chatId),
             orderBy("createdAt", "asc")
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribeMessages = onSnapshot(qMessages, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -44,7 +61,10 @@ const Chat = () => {
             }, 100);
         });
 
-        return unsubscribe;
+        return () => {
+            unsubscribeRequest();
+            unsubscribeMessages();
+        };
     }, [chatId]);
 
     const handleSendMessage = async (e) => {
@@ -79,7 +99,13 @@ const Chat = () => {
                     <div className="chat-loader">
                         <div className="loader-spinner"></div>
                         <p>Loading conversation...</p>
-                        <p className="loader-hint">If this takes too long, please create the required Firestore index.</p>
+                    </div>
+                ) : requestData?.status !== 'accepted' ? (
+                    <div className="restricted-state">
+                        <span className="lock-icon">🔒</span>
+                        <h4>Messaging Hidden</h4>
+                        <p>Chat is only available once the donor accepts your request.</p>
+                        <span className="status-note">Current Status: {requestData?.status?.replace(/_/g, ' ')}</span>
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="empty-chat">
@@ -109,9 +135,10 @@ const Chat = () => {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
+                    placeholder={requestData?.status === 'accepted' ? "Type a message..." : "Messaging disabled"}
+                    disabled={requestData?.status !== 'accepted'}
                 />
-                <button type="submit" disabled={!newMessage.trim()}>Send</button>
+                <button type="submit" disabled={!newMessage.trim() || requestData?.status !== 'accepted'}>Send</button>
             </form>
 
             <style>{`
@@ -237,6 +264,30 @@ const Chat = () => {
         .empty-icon {
             font-size: 3rem;
             opacity: 0.5;
+        }
+
+        .restricted-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            text-align: center;
+            color: var(--text-medium);
+            gap: 0.75rem;
+        }
+        .lock-icon { font-size: 3.5rem; margin-bottom: 0.5rem; opacity: 0.8; }
+        .restricted-state h4 { color: var(--text-dark); margin: 0; }
+        .restricted-state p { font-size: 0.9rem; color: var(--text-light); max-width: 280px; margin: 0 auto; }
+        .status-note { 
+            margin-top: 1.5rem;
+            padding: 0.4rem 1rem;
+            background: #FFF3E0;
+            color: #F57C00;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
         }
       `}</style>
         </div>

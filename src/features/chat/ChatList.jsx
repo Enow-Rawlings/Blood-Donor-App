@@ -13,10 +13,17 @@ const ChatList = () => {
     useEffect(() => {
         if (!currentUser) return;
 
-        // Query requests where user is either donor or recipient
-        // Note: 'or' query might require an index, but we can also use two separate listeners
-        const qRecipient = query(collection(db, "requests"), where("recipientId", "==", currentUser.uid));
-        const qDonor = query(collection(db, "requests"), where("donorId", "==", currentUser.uid));
+        // Query accepted requests where user is either donor or recipient
+        const qRecipient = query(
+            collection(db, "requests"),
+            where("recipientId", "==", currentUser.uid),
+            where("status", "==", "accepted")
+        );
+        const qDonor = query(
+            collection(db, "requests"),
+            where("donorId", "==", currentUser.uid),
+            where("status", "==", "accepted")
+        );
 
         const handleSnapshot = (snapshot, type) => {
             return snapshot.docs.map(doc => ({
