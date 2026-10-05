@@ -12,6 +12,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [userData, setUserData] = useState(null);
+    const [profileError, setProfileError] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -19,6 +20,9 @@ export function AuthProvider({ children }) {
 
         const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
             setCurrentUser(user);
+            setUserData(null);
+            setProfileError(null);
+            setLoading(true);
 
             // Unsubscribe from previous user listener if exists
             if (unsubscribeUserDoc) {
@@ -36,10 +40,10 @@ export function AuthProvider({ children }) {
                     setLoading(false);
                 }, (error) => {
                     console.error("Error fetching user profile:", error);
+                    setProfileError(error);
                     setLoading(false);
                 });
             } else {
-                setUserData(null);
                 setLoading(false);
             }
         });
@@ -55,6 +59,7 @@ export function AuthProvider({ children }) {
     const value = {
         currentUser,
         userData,
+        profileError,
         loading
     };
 
