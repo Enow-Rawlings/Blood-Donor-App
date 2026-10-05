@@ -7,6 +7,7 @@ const AdminDashboard = () => {
     const [pendingUsers, setPendingUsers] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -16,6 +17,10 @@ const AdminDashboard = () => {
             const users = snapshot.docs.map(doc => ({ id: doc.id, type: 'user', ...doc.data() }));
             setPendingUsers(users);
             setLoading(false);
+        }, (error) => {
+            console.error('Pending users listener failed:', error);
+            setLoadError('Firestore denied access to the verification queue. Confirm this account has admin access to the users and requests collections.');
+            setLoading(false);
         });
 
         // Listen to pending blood requests (those awaiting admin review)
@@ -23,6 +28,10 @@ const AdminDashboard = () => {
         const unsubscribeRequests = onSnapshot(requestsQ, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, type: 'request', ...doc.data() }));
             setPendingRequests(reqs);
+        }, (error) => {
+            console.error('Pending requests listener failed:', error);
+            setLoadError('Firestore denied access to the verification queue. Confirm this account has admin access to the users and requests collections.');
+            setLoading(false);
         });
 
         return () => {
@@ -73,7 +82,9 @@ const AdminDashboard = () => {
             </header>
 
             <div className="queue-list">
-                {loading ? (
+                {loadError ? (
+                    <div className="error-alert card" role="alert">{loadError}</div>
+                ) : loading ? (
                     <p>Loading queue...</p>
                 ) : allPending.length === 0 ? (
                     <div className="empty-state card">
