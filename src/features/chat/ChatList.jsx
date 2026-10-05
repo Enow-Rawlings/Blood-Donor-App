@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { collection, query, where, onSnapshot, or } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const ChatList = () => {
-    const { currentUser, userData } = useAuth();
+    const { currentUser } = useAuth();
     const [chats, setChats] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
@@ -13,53 +13,27 @@ const ChatList = () => {
     useEffect(() => {
         if (!currentUser) return;
 
-        // Query accepted requests where user is either donor or recipient
-        const qRecipient = query(
-            collection(db, "requests"),
-            where("recipientId", "==", currentUser.uid),
-            where("status", "==", "accepted")
-        );
-        const qDonor = query(
-            collection(db, "requests"),
-            where("donorId", "==", currentUser.uid),
-            where("status", "==", "accepted")
+        const chatsQuery = query(
+            collection(db, "chats"),
+            where("participants", "array-contains", currentUser.uid)
         );
 
-        const handleSnapshot = (snapshot, type) => {
-            return snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                chatType: type
-            }));
-        };
-
-        let recipientChats = [];
-        let donorChats = [];
-
-        const updateAllChats = () => {
-            const combined = [...recipientChats, ...donorChats].sort((a, b) =>
-                (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0)
-            );
-            // Remove duplicates (if any)
-            const unique = combined.filter((v, i, a) => a.findIndex(t => t.chatId === v.chatId) === i);
-            setChats(unique);
+        const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
+            const results = snapshot.docs.map(chatDoc => ({
+                id: chatDoc.id,
+                ...chatDoc.data(),
+                chatType: chatDoc.data().donorId === currentUser.uid ? 'donor' : 'recipient'
+            })).filter(chat => chat.status === 'accepted');
+            results.sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
+            setChats(results);
             setLoading(false);
-        };
-
-        const unsubRecipient = onSnapshot(qRecipient, (snapshot) => {
-            recipientChats = handleSnapshot(snapshot, 'recipient');
-            updateAllChats();
+        }, (error) => {
+            console.error('Chats could not be loaded:', error);
+            setChats([]);
+            setLoading(false);
         });
 
-        const unsubDonor = onSnapshot(qDonor, (snapshot) => {
-            donorChats = handleSnapshot(snapshot, 'donor');
-            updateAllChats();
-        });
-
-        return () => {
-            unsubRecipient();
-            unsubDonor();
-        };
+        return unsubscribe;
     }, [currentUser]);
 
     if (loading) return <div className="chat-loader">Loading connections...</div>;
@@ -73,9 +47,9 @@ const ChatList = () => {
             ) : (
                 chats.map(chat => (
                     <div
-                        key={chat.chatId}
+                        key={chat.id}
                         className="chat-item card"
-                        onClick={() => navigate(`/chat/${chat.chatId}`)}
+                        onClick={() => navigate(`/chat/${chat.id}`)}
                     >
                         <div className="chat-avatar">
                             {chat.chatType === 'recipient' ? (chat.donorName?.[0] || 'D') : (chat.recipientName?.[0] || 'R')}

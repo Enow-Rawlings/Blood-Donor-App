@@ -14,9 +14,14 @@ const RecipientDashboard = () => {
 
     useEffect(() => {
         if (!userData) return;
-        const q = query(collection(db, "requests"), where("recipientId", "==", userData.uid));
+        const q = query(
+            collection(db, "chats"),
+            where("participants", "array-contains", userData.uid)
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const reqs = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(request => request.recipientId === userData.uid);
             setRecentRequests(reqs);
             setLoading(false);
         });

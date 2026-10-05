@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const AdminDashboard = () => {
     const [pendingUsers, setPendingUsers] = useState([]);
@@ -42,17 +42,42 @@ const AdminDashboard = () => {
 
     const handleVerify = async (id, type, approve) => {
         try {
-            const collectionName = type === 'user' ? "users" : "requests";
             const newStatus = approve
                 ? (type === 'user' ? 'approved' : 'approved_by_admin')
                 : 'rejected';
+            const batch = writeBatch(db);
 
-            await updateDoc(doc(db, collectionName, id), {
-                status: newStatus
-            });
+            if (type === 'user') {
+                const user = pendingUsers.find((item) => item.id === id);
+                batch.update(doc(db, 'users', id), { status: newStatus });
+                if (user?.role === 'donor') {
+                    batch.set(doc(db, 'donorDirectory', id), {
+                        uid: id,
+                        role: 'donor',
+                        fullName: user.fullName,
+                        bloodType: user.bloodType,
+                        city: user.city,
+                        profilePicUrl: user.profilePicUrl || '',
+                        availabilityStatus: user.availabilityStatus || 'inactive',
+                        status: newStatus
+                    }, { merge: true });
+                }
+            } else {
+                const request = pendingRequests.find((item) => item.id === id);
+                if (!request) return;
+                batch.update(doc(db, 'requests', id), { status: newStatus });
+                batch.set(doc(db, 'chats', request.chatId), {
+                    requestId: id,
+                    recipientId: request.recipientId,
+                    donorId: request.donorId,
+                    participants: [request.recipientId, request.donorId],
+                    status: newStatus
+                }, { merge: true });
+            }
+
+            await batch.commit();
 
             if (type === 'request' && approve) {
-                // Find the request data to get donorId
                 const reqData = pendingRequests.find(r => r.id === id);
                 if (reqData) {
                     await addDoc(collection(db, "notifications"), {
@@ -68,8 +93,22 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleViewDocument = (url, title) => {
-        navigate(`/document-viewer?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`);
+    const handleViewDocument = async (item) => {
+        try {
+            const documentSnapshot = await getDoc(doc(db, 'verificationDocuments', item.id));
+            if (!documentSnapshot.exists()) {
+                window.alert('The verification document is unavailable.');
+                return;
+            }
+            const { documentUrl } = documentSnapshot.data();
+            const title = item.type === 'user'
+                ? `${item.fullName} - Medical Report`
+                : `${item.recipientName} - Prescription`;
+            navigate(`/document-viewer?url=${encodeURIComponent(documentUrl)}&title=${encodeURIComponent(title)}`);
+        } catch (error) {
+            console.error('Verification document could not be loaded:', error);
+            window.alert('You do not have permission to view this verification document.');
+        }
     };
 
     const allPending = [...pendingUsers, ...pendingRequests];
@@ -127,12 +166,9 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="docs-preview">
-                                {(item.medicalReportUrl || item.prescriptionUrl) ? (
+                                {item.hasVerificationDocument ? (
                                     <button
-                                        onClick={() => handleViewDocument(
-                                            item.medicalReportUrl || item.prescriptionUrl,
-                                            item.type === 'user' ? `${item.fullName} - Medical Report` : `${item.recipientName} - Prescription`
-                                        )}
+                                        onClick={() => handleViewDocument(item)}
                                         className="btn-view-doc"
                                     >
                                         View Verification Document 📄

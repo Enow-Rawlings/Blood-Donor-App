@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/firebase';
-import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, collection, query, where, onSnapshot, writeBatch } from 'firebase/firestore';
 import ChatList from '../chat/ChatList';
 
 const DonorDashboard = () => {
@@ -21,13 +21,14 @@ const DonorDashboard = () => {
 
         // Listen for requests approved by admin but not yet accepted by donor
         const q = query(
-            collection(db, "requests"),
-            where("donorId", "==", currentUser.uid),
-            where("status", "==", "approved_by_admin")
+            collection(db, "chats"),
+            where("participants", "array-contains", currentUser.uid)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const reqs = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(request => request.donorId === currentUser.uid && request.status === 'approved_by_admin');
             setRequests(reqs);
         });
 
@@ -39,9 +40,15 @@ const DonorDashboard = () => {
         setIsActive(!isActive);
 
         try {
-            await updateDoc(doc(db, "users", currentUser.uid), {
+            const batch = writeBatch(db);
+            const availabilityStatus = newStatus;
+            batch.update(doc(db, "users", currentUser.uid), {
                 availabilityStatus: newStatus
             });
+            batch.update(doc(db, 'donorDirectory', currentUser.uid), {
+                availabilityStatus
+            });
+            await batch.commit();
         } catch (error) {
             console.error("Failed to update status", error);
         }
@@ -49,9 +56,14 @@ const DonorDashboard = () => {
 
     const handleRequestAction = async (requestId, action) => {
         try {
-            await updateDoc(doc(db, "requests", requestId), {
-                status: action === 'accept' ? 'accepted' : 'declined'
-            });
+            const request = requests.find((item) => item.id === requestId);
+            if (!request?.requestId) throw new Error('The request has no matching request record');
+
+            const status = action === 'accept' ? 'accepted' : 'declined';
+            const batch = writeBatch(db);
+            batch.update(doc(db, "requests", request.requestId), { status });
+            batch.update(doc(db, 'chats', requestId), { status });
+            await batch.commit();
         } catch (error) {
             console.error(`Failed to ${action} request`, error);
         }

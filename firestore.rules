@@ -1,0 +1,316 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function hasRole(role) {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function onlyChanges(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    function donorDirectoryMatchesUser(donorId) {
+      let profile = getAfter(/databases/$(database)/documents/users/$(donorId)).data;
+      return profile.role == 'donor'
+        && profile.uid == donorId
+        && request.resource.data.uid == donorId
+        && request.resource.data.role == 'donor'
+        && request.resource.data.fullName == profile.fullName
+        && request.resource.data.bloodType == profile.bloodType
+        && request.resource.data.city == profile.city
+        && request.resource.data.profilePicUrl == profile.profilePicUrl
+        && request.resource.data.status == profile.status
+        && request.resource.data.availabilityStatus == profile.availabilityStatus;
+    }
+
+    function donorDirectoryAfterMatchesUser(donorId) {
+      let profile = getAfter(/databases/$(database)/documents/users/$(donorId)).data;
+      let donor = getAfter(/databases/$(database)/documents/donorDirectory/$(donorId)).data;
+      return profile.role == 'donor'
+        && donor.uid == donorId
+        && donor.role == 'donor'
+        && donor.fullName == profile.fullName
+        && donor.bloodType == profile.bloodType
+        && donor.city == profile.city
+        && donor.profilePicUrl == profile.profilePicUrl
+        && donor.status == profile.status
+        && donor.availabilityStatus == profile.availabilityStatus;
+    }
+
+    function requestParticipant(data) {
+      return signedIn()
+        && (data.recipientId == request.auth.uid || data.donorId == request.auth.uid);
+    }
+
+    function requestAfterMatchesChat(requestId, chatId) {
+      let bloodRequest = getAfter(/databases/$(database)/documents/requests/$(requestId)).data;
+      return bloodRequest.chatId == chatId
+        && bloodRequest.recipientId == request.resource.data.recipientId
+        && bloodRequest.donorId == request.resource.data.donorId
+        && bloodRequest.recipientName == request.resource.data.recipientName
+        && bloodRequest.donorName == request.resource.data.donorName
+        && bloodRequest.bloodTypeNeeded == request.resource.data.bloodTypeNeeded
+        && bloodRequest.city == request.resource.data.city;
+    }
+
+    match /users/{userId} {
+      allow get: if owns(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if owns(userId)
+        && request.resource.data.keys().hasAll([
+          'uid', 'email', 'role', 'status', 'createdAt', 'fullName',
+          'city', 'acceptedTerms', 'hasVerificationDocument'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'role', 'status', 'createdAt', 'fullName',
+          'phone', 'city', 'age', 'weight', 'bloodType', 'bloodTypeNeeded',
+          'profilePicUrl', 'acceptedTerms', 'availabilityStatus',
+          'hasVerificationDocument'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role in ['donor', 'recipient']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.acceptedTerms == true
+        && request.resource.data.hasVerificationDocument == true
+        && request.resource.data.createdAt is string
+        && getAfter(/databases/$(database)/documents/verificationDocuments/$(userId)).data.ownerId == userId
+        && getAfter(/databases/$(database)/documents/verificationDocuments/$(userId)).data.subjectType == 'user'
+        && (request.resource.data.role != 'donor' || donorDirectoryAfterMatchesUser(userId));
+
+      allow update: if isAdmin()
+          && resource.data.status == 'pending'
+          && request.resource.data.status in ['approved', 'rejected']
+          && onlyChanges(['status'])
+          && (resource.data.role != 'donor' || donorDirectoryAfterMatchesUser(userId))
+        || owns(userId)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.status == resource.data.status
+          && (onlyChanges(['fullName', 'phone', 'city', 'profilePicUrl'])
+            || (resource.data.role == 'donor'
+              && resource.data.status == 'approved'
+              && request.resource.data.availabilityStatus in ['active', 'inactive']
+              && onlyChanges(['availabilityStatus'])))
+          && (resource.data.role != 'donor' || donorDirectoryAfterMatchesUser(userId));
+
+      allow delete: if false;
+    }
+
+    match /donorDirectory/{donorId} {
+      allow get: if owns(donorId) || isAdmin();
+      allow list: if isAdmin()
+        || (hasRole('recipient')
+          && resource.data.role == 'donor'
+          && resource.data.status == 'approved'
+          && resource.data.availabilityStatus == 'active');
+
+      allow create: if (owns(donorId) || isAdmin())
+        && request.resource.data.keys().hasAll([
+          'uid', 'role', 'fullName', 'bloodType', 'city', 'profilePicUrl',
+          'status', 'availabilityStatus'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'role', 'fullName', 'bloodType', 'city', 'profilePicUrl',
+          'status', 'availabilityStatus'
+        ])
+        && donorDirectoryMatchesUser(donorId);
+
+      allow update: if isAdmin()
+          && onlyChanges(['status'])
+          && donorDirectoryMatchesUser(donorId)
+        || owns(donorId)
+          && get(/databases/$(database)/documents/users/$(donorId)).data.status == 'approved'
+          && (onlyChanges(['fullName', 'city', 'profilePicUrl'])
+            || onlyChanges(['availabilityStatus']))
+          && donorDirectoryMatchesUser(donorId);
+
+      allow delete: if false;
+    }
+
+    match /verificationDocuments/{documentId} {
+      allow get: if isAdmin();
+      allow list: if false;
+
+      allow create: if owns(request.resource.data.ownerId)
+        && request.resource.data.keys().hasAll([
+          'ownerId', 'subjectType', 'documentUrl', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'subjectType', 'documentUrl', 'createdAt'
+        ])
+        && request.resource.data.documentUrl is string
+        && request.resource.data.documentUrl.size() <= 2048
+        && request.resource.data.createdAt == request.time
+        && ((request.resource.data.subjectType == 'user'
+            && documentId == request.auth.uid
+            && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.hasVerificationDocument == true)
+          || (request.resource.data.subjectType == 'request'
+            && getAfter(/databases/$(database)/documents/requests/$(documentId)).data.recipientId == request.auth.uid
+            && getAfter(/databases/$(database)/documents/requests/$(documentId)).data.hasVerificationDocument == true));
+
+      allow update, delete: if false;
+    }
+
+    match /requests/{requestId} {
+      allow get, list: if isAdmin()
+        || (requestParticipant(resource.data) && !('prescriptionUrl' in resource.data));
+
+      allow create: if hasRole('recipient')
+        && request.resource.data.keys().hasAll([
+          'recipientId', 'recipientName', 'donorId', 'donorName', 'bloodTypeNeeded',
+          'hasVerificationDocument', 'status', 'city', 'chatId', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'recipientId', 'recipientName', 'donorId', 'donorName', 'bloodTypeNeeded',
+          'hasVerificationDocument', 'status', 'city', 'chatId', 'createdAt'
+        ])
+        && request.resource.data.recipientId == request.auth.uid
+        && request.resource.data.recipientName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.fullName
+        && request.resource.data.city == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.city
+        && request.resource.data.donorId is string
+        && request.resource.data.donorId != request.auth.uid
+        && request.resource.data.donorName == get(/databases/$(database)/documents/donorDirectory/$(request.resource.data.donorId)).data.fullName
+        && request.resource.data.bloodTypeNeeded == get(/databases/$(database)/documents/donorDirectory/$(request.resource.data.donorId)).data.bloodType
+        && request.resource.data.status == 'pending_admin_approval'
+        && request.resource.data.hasVerificationDocument == true
+        && request.resource.data.chatId == requestId
+        && request.resource.data.createdAt == request.time
+        && get(/databases/$(database)/documents/donorDirectory/$(request.resource.data.donorId)).data.status == 'approved'
+        && get(/databases/$(database)/documents/donorDirectory/$(request.resource.data.donorId)).data.availabilityStatus == 'active'
+        && getAfter(/databases/$(database)/documents/chats/$(requestId)).data.requestId == requestId
+        && getAfter(/databases/$(database)/documents/verificationDocuments/$(requestId)).data.ownerId == request.auth.uid;
+
+      allow update: if isAdmin()
+          && resource.data.status == 'pending_admin_approval'
+          && request.resource.data.status in ['approved_by_admin', 'rejected']
+          && onlyChanges(['status'])
+          && getAfter(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.status == request.resource.data.status
+        || signedIn()
+          && request.auth.uid == resource.data.donorId
+          && hasRole('donor')
+          && resource.data.status == 'approved_by_admin'
+          && request.resource.data.status in ['accepted', 'declined']
+          && onlyChanges(['status'])
+          && getAfter(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.status == request.resource.data.status;
+
+      allow delete: if false;
+    }
+
+    match /chats/{chatId} {
+      allow get: if isAdmin()
+        || (signedIn() && request.auth.uid in resource.data.participants);
+      allow list: if signedIn()
+        && request.auth.uid in resource.data.participants;
+
+      allow create: if request.resource.data.keys().hasAll([
+          'requestId', 'recipientId', 'recipientName', 'donorId', 'donorName',
+          'bloodTypeNeeded', 'city', 'participants', 'status'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'requestId', 'recipientId', 'recipientName', 'donorId', 'donorName',
+          'bloodTypeNeeded', 'city', 'participants', 'status', 'createdAt'
+        ])
+        && request.resource.data.participants.hasAll([
+          request.resource.data.recipientId, request.resource.data.donorId
+        ])
+        && request.resource.data.participants.size() == 2
+        && ((signedIn()
+            && hasRole('recipient')
+            && request.resource.data.requestId == chatId
+            && request.resource.data.recipientId == request.auth.uid
+            && request.resource.data.status == 'pending_admin_approval'
+            && requestAfterMatchesChat(chatId, chatId)
+            && getAfter(/databases/$(database)/documents/requests/$(chatId)).data.status == 'pending_admin_approval')
+          || (isAdmin()
+            && request.resource.data.requestId is string
+            && requestAfterMatchesChat(request.resource.data.requestId, chatId)
+            && getAfter(/databases/$(database)/documents/requests/$(request.resource.data.requestId)).data.status in ['approved_by_admin', 'rejected'])
+          || (signedIn()
+            && request.auth.uid == request.resource.data.donorId
+            && hasRole('donor')
+            && get(/databases/$(database)/documents/requests/$(request.resource.data.requestId)).data.status == 'approved_by_admin'
+            && getAfter(/databases/$(database)/documents/requests/$(request.resource.data.requestId)).data.status in ['accepted', 'declined']
+            && requestAfterMatchesChat(request.resource.data.requestId, chatId)));
+
+      allow update: if isAdmin()
+          && onlyChanges(['status'])
+          && request.resource.data.status in ['approved_by_admin', 'rejected']
+          && getAfter(/databases/$(database)/documents/requests/$(resource.data.requestId)).data.status == request.resource.data.status
+        || signedIn()
+          && request.auth.uid == resource.data.donorId
+          && hasRole('donor')
+          && resource.data.status == 'approved_by_admin'
+          && request.resource.data.status in ['accepted', 'declined']
+          && onlyChanges(['status'])
+          && getAfter(/databases/$(database)/documents/requests/$(resource.data.requestId)).data.status == request.resource.data.status;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function chatData() {
+          return get(/databases/$(database)/documents/chats/$(chatId)).data;
+        }
+
+        allow get, list: if signedIn()
+          && request.auth.uid in chatData().participants
+          && chatData().status == 'accepted';
+
+        allow create: if signedIn()
+          && request.auth.uid in chatData().participants
+          && chatData().status == 'accepted'
+          && request.resource.data.keys().hasAll(['senderId', 'text', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time;
+
+        allow update, delete: if false;
+      }
+    }
+
+    match /notifications/{notificationId} {
+      allow get, list: if isAdmin()
+        || (signedIn() && resource.data.recipientId == request.auth.uid);
+
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['recipientId', 'title', 'body', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['recipientId', 'title', 'body', 'createdAt'])
+        && request.resource.data.title is string
+        && request.resource.data.body is string
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+
+    match /donations/{donationId} {
+      allow get, list: if isAdmin()
+        || (signedIn()
+          && (resource.data.donorId == request.auth.uid
+            || resource.data.recipientId == request.auth.uid));
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

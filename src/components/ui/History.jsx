@@ -11,18 +11,23 @@ const History = () => {
     useEffect(() => {
         if (!userData) return;
 
-        // Query both donations (for donors) or requests (for recipients)
-        const collectionName = userData.role === 'donor' ? 'donations' : 'requests';
-        const fieldName = userData.role === 'donor' ? 'donorId' : 'recipientId';
-
-        const q = query(
-            collection(db, collectionName),
-            where(fieldName, "==", userData.uid),
-            orderBy("createdAt", "desc")
-        );
+        const collectionName = userData.role === 'donor' ? 'donations' : 'chats';
+        const q = userData.role === 'donor'
+            ? query(
+                collection(db, collectionName),
+                where('donorId', '==', userData.uid),
+                orderBy('createdAt', 'desc')
+            )
+            : query(
+                collection(db, collectionName),
+                where('participants', 'array-contains', userData.uid)
+            );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const data = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(item => userData.role === 'donor' || item.recipientId === userData.uid)
+                .sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
             setHistory(data);
             setLoading(false);
         });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../../services/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import FileUpload from '../auth/FileUpload';
 
@@ -19,20 +19,44 @@ const BloodRequestForm = ({ donor, onClose, onSuccess }) => {
 
         setLoading(true);
         try {
-            const chatId = `${currentUser.uid}_${donor.id}_${Date.now()}`;
-            await addDoc(collection(db, "requests"), {
+            const requestRef = doc(collection(db, 'requests'));
+            const chatId = requestRef.id;
+            const batch = writeBatch(db);
+
+            batch.set(requestRef, {
                 recipientId: currentUser.uid,
                 recipientName: userData.fullName,
                 donorId: donor.id,
                 donorName: donor.fullName,
                 bloodTypeNeeded: donor.bloodType,
-                prescriptionUrl: prescriptionUrl,
+                hasVerificationDocument: true,
                 status: 'pending_admin_approval',
                 city: userData.city,
                 chatId: chatId,
                 createdAt: serverTimestamp()
             });
-            // We'll notify admin via the Admin Dashboard's real-time listener or a system notification
+
+            batch.set(doc(db, 'chats', chatId), {
+                requestId: requestRef.id,
+                recipientId: currentUser.uid,
+                recipientName: userData.fullName,
+                donorId: donor.id,
+                donorName: donor.fullName,
+                bloodTypeNeeded: donor.bloodType,
+                city: userData.city,
+                participants: [currentUser.uid, donor.id],
+                status: 'pending_admin_approval',
+                createdAt: serverTimestamp()
+            });
+
+            batch.set(doc(db, 'verificationDocuments', requestRef.id), {
+                ownerId: currentUser.uid,
+                subjectType: 'request',
+                documentUrl: prescriptionUrl,
+                createdAt: serverTimestamp()
+            });
+
+            await batch.commit();
 
             onSuccess();
         } catch (err) {

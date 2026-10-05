@@ -9,71 +9,67 @@ import {
     orderBy,
     onSnapshot,
     serverTimestamp,
-    where
+    doc
 } from 'firebase/firestore';
 
 const Chat = () => {
     const { chatId } = useParams();
     const { currentUser } = useAuth();
-    const [messages, setMessages] = useState([]);
+    const [chatSnapshot, setChatSnapshot] = useState(null);
+    const [messageSnapshot, setMessageSnapshot] = useState({ chatId: null, messages: [] });
     const [newMessage, setNewMessage] = useState('');
-    const [loading, setLoading] = useState(true);
     const scrollRef = useRef();
     const navigate = useNavigate();
 
-    const [requestData, setRequestData] = useState(null);
+    const requestData = chatSnapshot?.chatId === chatId ? chatSnapshot.data : null;
+    const messages = messageSnapshot.chatId === chatId ? messageSnapshot.messages : [];
+    const loading = chatSnapshot?.chatId !== chatId;
 
     useEffect(() => {
         if (!chatId) return;
 
-        // Verify request status
-        const qRequest = query(collection(db, "requests"), where("chatId", "==", chatId));
-        const unsubscribeRequest = onSnapshot(qRequest, (snapshot) => {
-            if (!snapshot.empty) {
-                const data = snapshot.docs[0].data();
-                setRequestData(data);
-                if (data.status !== 'accepted') {
-                    // Messaging restricted
-                    setLoading(false);
-                }
-            } else {
-                setLoading(false);
-            }
+        const unsubscribeChat = onSnapshot(doc(db, 'chats', chatId), (snapshot) => {
+            setChatSnapshot({ chatId, data: snapshot.exists() ? snapshot.data() : null });
+        }, (error) => {
+            console.error('Chat access failed:', error);
+            setChatSnapshot({ chatId, data: null });
         });
 
-        const qMessages = query(
-            collection(db, "messages"),
-            where("chatId", "==", chatId),
-            orderBy("createdAt", "asc")
+        return unsubscribeChat;
+    }, [chatId]);
+
+    useEffect(() => {
+        if (!chatId || requestData?.status !== 'accepted') return;
+
+        const messagesQuery = query(
+            collection(db, 'chats', chatId, 'messages'),
+            orderBy('createdAt', 'asc')
         );
 
-        const unsubscribeMessages = onSnapshot(qMessages, (snapshot) => {
+        const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
-            setMessages(msgs);
-            setLoading(false);
+            setMessageSnapshot({ chatId, messages: msgs });
 
             // Auto-scroll to bottom
             setTimeout(() => {
                 scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
             }, 100);
+        }, (error) => {
+            console.error('Chat messages could not be loaded:', error);
         });
 
-        return () => {
-            unsubscribeRequest();
-            unsubscribeMessages();
-        };
-    }, [chatId]);
+        return unsubscribeMessages;
+    }, [chatId, requestData?.status]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!newMessage.trim()) return;
 
         try {
-            await addDoc(collection(db, "messages"), {
-                chatId: chatId,
+            await addDoc(collection(db, 'chats', chatId, 'messages'), {
                 senderId: currentUser.uid,
                 text: newMessage,
                 createdAt: serverTimestamp()

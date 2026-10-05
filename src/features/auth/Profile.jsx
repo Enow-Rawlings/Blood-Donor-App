@@ -32,7 +32,6 @@ const Profile = () => {
         try {
             await updateUserProfile(currentUser.uid, formData);
             setIsEditing(false);
-            // The userData in context should auto-update if it's using a listener
         } catch (err) {
             console.error("Update failed", err);
             alert("Failed to update profile");

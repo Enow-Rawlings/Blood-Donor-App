@@ -43,7 +43,7 @@ const DonorSearch = () => {
                 constraints.push(where("city", "==", city));
             }
 
-            const q = query(collection(db, "users"), ...constraints);
+            const q = query(collection(db, "donorDirectory"), ...constraints);
 
             const querySnapshot = await getDocs(q);
             const results = [];

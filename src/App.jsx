@@ -16,7 +16,7 @@ import { useAuth } from './context/AuthContext';
 import DocumentViewer from './components/ui/DocumentViewer';
 
 function App() {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, userData, loading } = useAuth();
 
   if (loading) return null;
 
@@ -30,12 +30,12 @@ function App() {
 
         {/* Protected Routes */}
         <Route path="/dashboard" element={currentUser ? <DashboardRouter /> : <Navigate to="/login" />} />
-        <Route path="/search" element={currentUser?.role === 'recipient' ? <DonorSearch /> : <Navigate to="/dashboard" />} />
+        <Route path="/search" element={userData?.role === 'recipient' ? <DonorSearch /> : <Navigate to="/dashboard" />} />
         <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/login" />} />
         <Route path="/history" element={currentUser ? <History /> : <Navigate to="/login" />} />
         <Route path="/chat/:chatId" element={currentUser ? <Chat /> : <Navigate to="/login" />} />
-        <Route path="/document-viewer" element={currentUser ? <DocumentViewer /> : <Navigate to="/login" />} />
-        <Route path="/admin" element={currentUser?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" />} />
+        <Route path="/document-viewer" element={userData?.role === 'admin' ? <DocumentViewer /> : <Navigate to="/dashboard" />} />
+        <Route path="/admin" element={userData?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" />} />
         <Route path="/admin-home" element={<AdminHome />} />
 
         {/* Fallback */}
